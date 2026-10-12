@@ -1,42 +1,21 @@
-FROM alpine:latest
+FROM alpine:edge
 
-# نصب پیش‌نیازها
-RUN apk update && apk add --no-cache curl unzip
+ENV UUID=550e8400-e29b-41d4-a716-446655440000
+ENV PORT=8080
 
-# دانلود و نصب Xray-core
-RUN curl -L -o xray.zip https://github.com/XTLS/Xray-core/releases/latest/download/Xray-linux-64.zip && \
-    unzip xray.zip && \
-    mv xray /usr/local/bin/xray && \
-    chmod +x /usr/local/bin/xray && \
-    rm xray.zip
+RUN apk add --no-cache curl ca-certificates bash jq tar \
+    && mkdir -p /tmp/xray /usr/local/bin /etc/xray \
+    && XRAY_URL="https://github.com/XTLS/Xray-core/releases/latest/download/Xray-linux-64.zip" \
+    && curl -sL -H "Cache-Control: no-cache" -o /tmp/xray/xray.zip ${XRAY_URL} \
+    && unzip /tmp/xray/xray.zip -d /tmp/xray \
+    && install -m 755 /tmp/xray/xray /usr/local/bin/xray \
+    && rm -rf /tmp/xray
 
-# ایجاد فایل تنظیمات اختصاصی
-RUN mkdir -p /etc/xray
-RUN echo '{ \
-  "inbounds": [{ \
-    "port": 7860, \
-    "protocol": "vless", \
-    "settings": { \
-      "clients": [{ \
-        "id": "c1f7a0b3-9d4e-4f21-89b6-71d3a5e8c901", \
-        "flow": "xtls-rprx-vision", \
-        "level": 0, \
-        "email": "majix@trading.com" \
-      }], \
-      "decryption": "none" \
-    }, \
-    "streamSettings": { \
-      "network": "ws", \
-      "wsSettings": { \
-        "path": "/majix-tunnel" \
-      } \
-    } \
-  }], \
-  "outbounds": [{ \
-    "protocol": "freedom", \
-    "settings": {} \
-  }] \
-}' > /etc/xray/config.json
+COPY config.json /etc/xray/config.json
+COPY entrypoint.sh /entrypoint.sh
 
-# اجرای سرویس
-CMD ["/usr/local/bin/xray", "-config", "/etc/xray/config.json"]
+RUN chmod +x /entrypoint.sh
+
+EXPOSE 8080
+
+CMD ["/entrypoint.sh"]
